@@ -62,3 +62,20 @@ test('joined dependencies', function(t) {
 
   t.end();
 });
+
+test('out of order definition', function(t) {
+  var g = new Graph();
+  var updateCount = 0;
+
+  g.define('b', ['a'], a => {
+    updateCount++;
+    return a + 1;
+  });
+  t.equal(updateCount, 0);
+  t.equal(g.get('b'), undefined);
+
+  g.define('a', [], 1);
+  t.equal(g.get('b'), 2);
+
+  t.end();
+});

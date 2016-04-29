@@ -3,10 +3,18 @@
 
 'use strict';
 
-let assert = require('assert');
-
 // Helpers
 // -------
+
+function assert(cond, message) {
+  if (!cond) {
+    throw new Error(message);
+  }
+}
+
+assert.equal = function(actual, expected) {
+  assert(actual === expected, 'expected ' + expected + ', got ' + actual);
+};
 
 // Return a new object containing all of the own properties of `obj`.
 function cloneOwn(obj) {
@@ -48,7 +56,7 @@ function toposort(vars, edges) {
     let newRoots = [];
     roots.forEach(v => {
       let rootName = v.name;
-      assert.equal(countKeys(edgesIn[rootName]), 0, 'no edges in');
+      assert.equal(countKeys(edgesIn[rootName]), 0);
 
       let outNames = edgesOut[rootName];
       outNames.forEach(varName => {
@@ -61,7 +69,7 @@ function toposort(vars, edges) {
     });
     roots = newRoots;
   }
-  assert.equal(sorted.length, varArray.length, 'no cycle');
+  assert.equal(sorted.length, varArray.length);
   return sorted;
 }
 
@@ -84,6 +92,12 @@ class Graph {
     this._edgesOut[fromName].push(toName);
   }
 
+  _assertDefined(name) {
+    if (!(name in this._vars)) {
+      throw new Error("variable '" + name + "' is not defined");
+    }
+  }
+
   _sortedVars() {
     if (!this._sorted) {
       this._sorted = toposort(this._vars, this._edgesOut);
@@ -91,12 +105,23 @@ class Graph {
     return this._sorted;
   }
 
-  _update(v) {
+  _hasValue(varName) {
+    return varName in this._values;
+  }
+
+  _maybeUpdate(v) {
+    let name = v.name;
     if (typeof v.update === 'function') {
-      let args = v.edgesIn.map(varName => this._values[varName]);
-      this._values[v.name] = v.update.apply(null, args);
-    } else if (!(v.name in this._values)) {
-      this._values[v.name] = v.update;
+      let args = [];
+      for (var depName of v.edgesIn) {
+        if (!this._hasValue(depName)) {
+          return;  // Bail -- one of the deps is not ready.
+        }
+        args.push(this._values[depName]);
+      }
+      this._values[name] = v.update.apply(null, args);
+    } else if (!this._hasValue(name)) {
+      this._values[name] = v.update;
     }
   }
 
@@ -105,7 +130,8 @@ class Graph {
   // `valueOrUpdateFn` is either an update function (having the same arity as
   // `deps`) or, if `deps` is empty, the initial value for the variable.
   define(name, deps, valueOrUpdateFn) {
-    assert(!(name in this._vars), false, 'already defined');
+    assert(!(name in this._vars),
+           "variable '" + name + "' is already defined");
     this._vars[name] = {
       name: name,
       edgesIn: deps,
@@ -114,20 +140,26 @@ class Graph {
     deps.forEach(depName => this._addEdge(depName, name));
     this._edgesOut[name] = this._edgesOut[name] || [];
     this._sorted = null;
-    this._update(this._vars[name]);
+
+    if (deps.length === 0) {
+      this.set(name, valueOrUpdateFn);
+    } else {
+      this._maybeUpdate(this._vars[name]);
+    }
   }
 
   // Get the current value of the variable named `name`.
   get(name) {
+    this._assertDefined(name);
     return this._values[name];
   }
 
   // Set the value of the variable named `name` to `value`.
   set(name, value) {
+    this._assertDefined(name);
     this._values[name] = value;
-    this._sortedVars().forEach(v => this._update(v));
+    this._sortedVars().forEach(v => this._maybeUpdate(v));
   }
-
 }
 
 // Exports
