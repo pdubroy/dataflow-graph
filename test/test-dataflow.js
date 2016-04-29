@@ -79,3 +79,11 @@ test('out of order definition', function(t) {
 
   t.end();
 });
+
+test('define() shorthand', function(t) {
+  var g = new Graph();
+  g.define('a', 3);
+  t.equal(g.get('a'), 3);
+
+  t.end();
+});

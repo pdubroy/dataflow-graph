@@ -126,16 +126,19 @@ class Graph {
   }
 
   // Define a new variable named `name`.
-  // `deps` is an Array of variable names that the new variable depends on.
-  // `valueOrUpdateFn` is either an update function (having the same arity as
-  // `deps`) or, if `deps` is empty, the initial value for the variable.
-  define(name, deps, valueOrUpdateFn) {
+  // Supports two signatures:
+  //   define(name, deps, updateFn), and
+  //   define(name, value)
+  define(name, ...args) {
+    let valueOrUpdateFn = args[args.length - 1];
+    let deps = args.length > 1 ? args[0] : [];
+
     assert(!(name in this._vars),
            "variable '" + name + "' is already defined");
     this._vars[name] = {
       name: name,
       edgesIn: deps,
-      update: valueOrUpdateFn
+      update: deps.length > 0 ? valueOrUpdateFn : null
     };
     deps.forEach(depName => this._addEdge(depName, name));
     this._edgesOut[name] = this._edgesOut[name] || [];
